@@ -2,7 +2,7 @@
 
 Это руководство теперь на сайте документации — со снимками экрана, поиском и на всех четырёх языках:
 
-- [Дашборд](https://docs.nexora-panel.org/ru/use/dashboard)
-- [Мониторинг и метрики](https://docs.nexora-panel.org/ru/how/monitoring)
+- [Дашборд](https://docs.nx-panel.org/ru/use/dashboard)
+- [Мониторинг и метрики](https://docs.nx-panel.org/ru/how/monitoring)
 
-Вся документация: https://docs.nexora-panel.org/ru/
+Вся документация: https://docs.nx-panel.org/ru/

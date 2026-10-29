@@ -1,4 +1,4 @@
-# Scraping the Nexora panel.
+# Scraping the NX panel.
 #
 # The target is the panel's compose service name, which is how this overlay
 # reaches it without the panel publishing anything extra to the host. If you run
@@ -12,7 +12,7 @@ global:
   scrape_timeout: 15s
 
 scrape_configs:
-  - job_name: nexora-panel
+  - job_name: nx-panel
     metrics_path: /metrics
     # `credentials_file` rather than `credentials`, so this file can be pasted
     # into an issue without pasting a key to your panel with it. Mint the token

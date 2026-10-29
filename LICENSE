@@ -1,10 +1,10 @@
-Nexora Panel — Proprietary Software License
-Copyright (c) 2026 Nexora. All rights reserved.
+NX Panel — Proprietary Software License
+Copyright (c) 2026 NX. All rights reserved.
 
 This software (the "Software") and its source code are proprietary and
 confidential. They are licensed, not sold.
 
-1. GRANT. Subject to a valid license key issued by Nexora and to this
+1. GRANT. Subject to a valid license key issued by NX and to this
    agreement, you are granted a non-exclusive, non-transferable right to run
    the Software for your own use, within the resource limits encoded in your
    license key.
@@ -23,22 +23,22 @@ confidential. They are licensed, not sold.
    more instances than licensed is a breach of this agreement and may cause the
    Software to revert to the free tier or cease operating.
 
-4. OWNERSHIP. Nexora retains all right, title, and interest in and to the
+4. OWNERSHIP. NX retains all right, title, and interest in and to the
    Software, including all intellectual property rights.
 
 5. NO WARRANTY. THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
    EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
    MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT.
 
-6. LIMITATION OF LIABILITY. IN NO EVENT SHALL NEXORA BE LIABLE FOR ANY CLAIM,
+6. LIMITATION OF LIABILITY. IN NO EVENT SHALL NX BE LIABLE FOR ANY CLAIM,
    DAMAGES, OR OTHER LIABILITY ARISING FROM OR IN CONNECTION WITH THE SOFTWARE
    OR ITS USE.
 
 7. TERMINATION. This license terminates automatically if you breach it. On
    termination you must stop using and destroy all copies of the Software.
 
-Note: The Nexora Node (the data-plane component in a separate repository) links
+Note: The NX Node (the data-plane component in a separate repository) links
 the sing-box library and is distributed under the GPL-3.0 license. This license
-governs the Nexora Panel only.
+governs the NX Panel only.
 
 For commercial licensing, contact the vendor.

@@ -2,6 +2,6 @@
 
 Это руководство теперь на сайте документации — со снимками экрана, поиском и на всех четырёх языках:
 
-- [Лицензия](https://docs.nexora-panel.org/ru/use/licence)
+- [Лицензия](https://docs.nx-panel.org/ru/use/licence)
 
-Вся документация: https://docs.nexora-panel.org/ru/
+Вся документация: https://docs.nx-panel.org/ru/

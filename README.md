@@ -1,13 +1,13 @@
 <div align="center">
-  <img src="https://avatars.githubusercontent.com/u/304456640?s=200&v=4" width="96" alt="Nexora">
-  <h1>Nexora Panel</h1>
+  <img src="https://avatars.githubusercontent.com/u/304456640?s=200&v=4" width="96" alt="NX">
+  <h1>NX Panel</h1>
   <p><strong>The control plane.</strong> Releases, install script, Docker stacks and documentation.</p>
 </div>
 
 ---
 
-Nexora is a proxy management platform made of a **panel** (this repository) and
-any number of **nodes** ([`nexora-vpn/node`](https://github.com/nexora-vpn/node)).
+NX is a proxy management platform made of a **panel** (this repository) and
+any number of **nodes** ([`nx-panel/node`](https://github.com/nx-panel/node)).
 The panel is the single source of truth — users, protocols, templates, nodes,
 subscriptions — and drives every node over mutual TLS. Nodes hold no database.
 
@@ -17,7 +17,7 @@ installer and documentation. The source is not public.
 ## Install
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/nexora-vpn/panel/main/install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/nx-panel/panel/main/install.sh)
 ```
 
 That is the whole install. It asks nothing: the script sets up the database and
@@ -35,30 +35,30 @@ unconfigured panel sitting on a public IP gives a scanner nothing to work with.
 | `--node-version vX.Y.Z` | stage a specific node release instead of the latest |
 | `--uninstall` | stop and remove the panel (the database is kept) |
 
-Running the script again on a server that already has Nexora **updates** it in
+Running the script again on a server that already has NX **updates** it in
 place, keeping the database, `config.json`, settings and admins.
 
 Alongside the panel the installer stages node binaries under
-`/var/opt/nexora/bin/`. Those are what the panel hands to node installers, so
+`/var/opt/nx-panel/bin/`. Those are what the panel hands to node installers, so
 adding your first node needs nothing staged by hand.
 
 ## Docker
 
 ```bash
-git clone https://github.com/nexora-vpn/panel
+git clone https://github.com/nx-panel/panel
 cd panel/docker/sqlite      # or: cd panel/docker/postgres
 docker compose up -d
 docker compose logs panel | grep setup
 ```
 
-Images: `ghcr.io/nexora-vpn/panel` (`linux/amd64`, `linux/arm64`), published with
+Images: `ghcr.io/nx-panel/panel` (`linux/amd64`, `linux/arm64`), published with
 every tagged release.
 
 A third stack, `docker/panel-and-node`, runs a node beside the panel on one
 server. It works, and it is **not recommended** — a node's address goes into
 every subscription link, so it publishes the panel's address to every user, and
 a node under load takes the panel down with it. The
-[install guide](https://docs.nexora-panel.org/start/same-server) has the
+[install guide](https://docs.nx-panel.org/start/same-server) has the
 two-step start and the caveats.
 
 ## Getting around it
@@ -89,7 +89,7 @@ A Docker install cannot replace its own image and the page says so; it updates
 with `docker compose pull && docker compose up -d`. Any install also updates by
 running the installer again, which is what to do where the panel cannot update
 itself. The daily check is one outbound request and can be switched off
-(`nexora-panel config set update_check false`) without disabling the button.
+(`nx-panel config set update_check false`) without disabling the button.
 
 ## IPv6
 
@@ -120,7 +120,7 @@ it leaves the server.
 | Encryption | Optional passphrase (scrypt + AES-GCM). The panel cannot recover a lost one |
 | Restore | From an upload or from an archive already on the host; the panel restarts into it |
 
-Archives live in `/var/opt/nexora/backups` on a native install, and in
+Archives live in `/var/opt/nx-panel/backups` on a native install, and in
 `./backups` next to the `docker-compose.yml` of whichever Docker stack you run.
 Copy that directory off the server — a backup that only exists on the machine it
 protects is not a backup.
@@ -134,16 +134,16 @@ first screen, choose *Restore a backup* instead of filling the form. The wizard
 is the only place a restore is possible before an account exists, which is
 exactly the state a fresh install is in. The licence comes with the backup but
 stays bound to the old host's fingerprint; **License → Move the licence to this
-machine** takes it across — see [moving to a new server](https://docs.nexora-panel.org/use/licence).
+machine** takes it across — see [moving to a new server](https://docs.nx-panel.org/use/licence).
 
 The schedule is also settable from the command line, which is what a headless or
 scripted install wants:
 
 ```bash
-nexora-panel config set backup_enabled true
-nexora-panel config set backup_interval_hours 24
-nexora-panel config set backup_keep 14
-nexora-panel config set backup_passphrase "a long passphrase"   # optional
+nx-panel config set backup_enabled true
+nx-panel config set backup_interval_hours 24
+nx-panel config set backup_keep 14
+nx-panel config set backup_passphrase "a long passphrase"   # optional
 ```
 
 ## Accounts and access
@@ -159,7 +159,7 @@ Two different questions decide what an account reaches: **permissions decide
 which pages**, and **ownership decides which users** — a reseller sees the
 accounts it owns whatever its permissions say. One account **owns** the panel:
 it cannot be deleted or demoted, and only it can hand the panel to another main
-admin. See [operators and roles](https://docs.nexora-panel.org/use/roles).
+admin. See [operators and roles](https://docs.nx-panel.org/use/roles).
 
 Operator accounts are the panel's, not the browser's. Sessions are stored, so a
 restart or an update logs nobody out, and each operator can see their own open
@@ -207,35 +207,35 @@ Entry names come from a template (`{USER} · {ROUTE} · {REMAINING}`) with a
 server-rendered preview, and the response carries the headers clients actually
 read — title, quota, update interval, announcement, support link.
 
-See [links and subscriptions](https://docs.nexora-panel.org/use/subscriptions) for all of it, including
+See [links and subscriptions](https://docs.nx-panel.org/use/subscriptions) for all of it, including
 what a CDN cannot carry (REALITY, QUIC, port hopping) and why the panel refuses
 those pairs when you save them rather than dropping them silently later.
 
 ## Documentation
 
-Everything about installing and running Nexora is on
-**[docs.nexora-panel.org](https://docs.nexora-panel.org)**, with screenshots,
+Everything about installing and running NX is on
+**[docs.nx-panel.org](https://docs.nx-panel.org)**, with screenshots,
 search and four languages:
-[English](https://docs.nexora-panel.org/) ·
-[فارسی](https://docs.nexora-panel.org/fa/) ·
-[Русский](https://docs.nexora-panel.org/ru/) ·
-[中文](https://docs.nexora-panel.org/zh/).
+[English](https://docs.nx-panel.org/) ·
+[فارسی](https://docs.nx-panel.org/fa/) ·
+[Русский](https://docs.nx-panel.org/ru/) ·
+[中文](https://docs.nx-panel.org/zh/).
 
 | | |
 | --- | --- |
-| [Get started](https://docs.nexora-panel.org/start/) | install the panel, the setup wizard, add a node, the first user |
-| [Use the panel](https://docs.nexora-panel.org/use/) | every page of the panel |
-| [Protocols](https://docs.nexora-panel.org/protocols/) | each inbound type and the apps that read it |
-| [How it works](https://docs.nexora-panel.org/how/) | the architecture, the path of a packet, sync, tunnels, events |
-| [Reference](https://docs.nexora-panel.org/reference/cli) | command line, files and ports, events, the API |
+| [Get started](https://docs.nx-panel.org/start/) | install the panel, the setup wizard, add a node, the first user |
+| [Use the panel](https://docs.nx-panel.org/use/) | every page of the panel |
+| [Protocols](https://docs.nx-panel.org/protocols/) | each inbound type and the apps that read it |
+| [How it works](https://docs.nx-panel.org/how/) | the architecture, the path of a packet, sync, tunnels, events |
+| [Reference](https://docs.nx-panel.org/reference/cli) | command line, files and ports, events, the API |
 
 The `docs/` folder here only points to the site.
 
 ## Releases
 
-`nexora-panel-linux-{amd64,arm64,armv5,armv6,armv7,386,s390x,riscv64}.tar.gz`,
+`nx-panel-linux-{amd64,arm64,armv5,armv6,armv7,386,s390x,riscv64}.tar.gz`,
 each with its `.sha256` beside it — the checksum the panel's own update checks a
-download against. Every archive holds the `nexora-panel` binary and the systemd
+download against. Every archive holds the `nx-panel` binary and the systemd
 unit.
 
 Linux only, and the nodes too: the panel is a service under systemd and a node
@@ -251,20 +251,20 @@ Every setting that can make the panel unreachable is writable offline, so a
 wrong port, domain or path is never a dead end:
 
 ```bash
-nexora-panel config set web_listen_port 2095
-nexora-panel config set web_listen_ip ""
-nexora-panel config set web_domain ""
-nexora-panel config set web_basepath ""
-systemctl restart nexora-panel
+nx-panel config set web_listen_port 2095
+nx-panel config set web_listen_ip ""
+nx-panel config set web_domain ""
+nx-panel config set web_basepath ""
+systemctl restart nx-panel
 ```
 
 A forgotten password and a lost database are not dead ends either. These work
 with the panel stopped, which is the state they are for:
 
 ```bash
-nexora-panel admin list                # the accounts, and which one is the main admin
-nexora-panel admin reset-password      # asks for the new one; never echoes it
-nexora-panel restore /var/opt/nexora/backups/nexora-backup-20260914-030000.tar.gz
+nx-panel admin list                # the accounts, and which one is the main admin
+nx-panel admin reset-password      # asks for the new one; never echoes it
+nx-panel restore /var/opt/nx-panel/backups/nx-backup-20260914-030000.tar.gz
 ```
 
 `reset-password` is also the way back from a lost phone: it turns two-factor
@@ -274,23 +274,23 @@ archive holds before it asks to replace anything, and keeps this install's own
 address settings and licence. The command line goes no further than this: managing users, nodes or plans is the panel's job, and every
 one of these commands exists only for the moment the panel cannot be reached.
 
-See `nexora-panel help` for the full command list.
+See `nx-panel help` for the full command list.
 
 ## Support
 
-- **Bugs and feature requests** — [open an issue here](https://github.com/nexora-vpn/panel/issues).
-  Node issues belong in [`nexora-vpn/node`](https://github.com/nexora-vpn/node/issues).
+- **Bugs and feature requests** — [open an issue here](https://github.com/nx-panel/panel/issues).
+  Node issues belong in [`nx-panel/node`](https://github.com/nx-panel/node/issues).
 - **Security vulnerabilities** — report them privately through
-  [the organisation's security advisories](https://github.com/nexora-vpn/.github/security/advisories/new).
+  [the organisation's security advisories](https://github.com/nx-panel/.github/security/advisories/new).
   Please do not open a public issue for those.
 
 ## Licence
 
-Nexora Panel is proprietary software, licensed per installation — see
+NX Panel is proprietary software, licensed per installation — see
 [LICENSE](LICENSE). Without one it runs on a **free tier** of 25 users and 1
 node with the full feature set, so everything can be evaluated before buying;
 a licence caps users and nodes and nothing else. It is bought, renewed,
 upgraded and moved from the panel's own **License** page — the licence
 installs itself, with no key to paste — and is bound to the panel host's
-hardware fingerprint, which `nexora-panel hwid` prints. See
-[the licence](https://docs.nexora-panel.org/use/licence).
+hardware fingerprint, which `nx-panel hwid` prints. See
+[the licence](https://docs.nx-panel.org/use/licence).

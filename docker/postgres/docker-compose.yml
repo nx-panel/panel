@@ -1,4 +1,4 @@
-# Nexora Panel — PostgreSQL.
+# NX Panel — PostgreSQL.
 #
 #   docker compose up -d
 #   docker compose logs panel | grep setup     # the first-run setup link
@@ -13,12 +13,12 @@
 # wizard there sets the main admin, the panel path and HTTPS. To print the
 # link's token again:
 #
-#   docker compose exec panel /app/nexora-panel setup-token
+#   docker compose exec panel /app/nx-panel setup-token
 services:
   panel:
-    image: ghcr.io/nexora-vpn/panel:latest
+    image: ghcr.io/nx-panel/panel:latest
     restart: unless-stopped
-    container_name: nexora-panel
+    container_name: nx-panel
     depends_on:
       postgres:
         condition: service_healthy
@@ -27,26 +27,26 @@ services:
       # Inside the container, bind the IPv6 wildcard — it accepts IPv4 too. What
       # reaches the host is the port mapping below, so an IPv6-only host also
       # needs that published on IPv6 (see the install guide).
-      NEXORA_WEB_LISTEN: "[::]:2095"
-      NEXORA_DB_DRIVER: postgres
-      NEXORA_DB_DSN: "host=postgres port=5432 user=nexora password=${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env} dbname=nexora sslmode=disable"
+      NX_WEB_LISTEN: "[::]:2095"
+      NX_DB_DRIVER: postgres
+      NX_DB_DSN: "host=postgres port=5432 user=nx password=${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env} dbname=nx sslmode=disable"
     volumes:
       # Backup archives. With PostgreSQL there is no database file to keep them
-      # beside, so the panel writes them to /var/opt/nexora/backups; without
+      # beside, so the panel writes them to /var/opt/nx-panel/backups; without
       # this mount they would live inside the container and go with it. Note
       # that a panel backup is a dump of the panel's own database taken by the
       # panel — it does not need pg_dump, and it restores onto SQLite too. An
       # archive holds every credential the panel has: guard ./backups like the
       # database.
-      - ./backups:/var/opt/nexora/backups
+      - ./backups:/var/opt/nx-panel/backups
       # Mirrored rule-set files: the panel's own copy of every rule-set it is
       # given, which is what its nodes download. With PostgreSQL there is no
-      # database file to keep them beside, so they go to /var/opt/nexora/rulesets
+      # database file to keep them beside, so they go to /var/opt/nx-panel/rulesets
       # — without this mount they live inside the container, and every recreate
       # throws the cache away and re-downloads it from the internet. A node whose
       # first rule-set fetch fails refuses its whole configuration, so this is
       # worth keeping.
-      - ./rulesets:/var/opt/nexora/rulesets
+      - ./rulesets:/var/opt/nx-panel/rulesets
       - ./bin:/app/bin
       - ./sub-themes:/app/sub-themes:ro
       - /etc/machine-id:/etc/machine-id:ro
@@ -56,16 +56,16 @@ services:
   postgres:
     image: postgres:17-alpine
     restart: unless-stopped
-    container_name: nexora-postgres
+    container_name: nx-postgres
     environment:
-      POSTGRES_USER: nexora
+      POSTGRES_USER: nx
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
-      POSTGRES_DB: nexora
+      POSTGRES_DB: nx
     volumes:
       - pgdata:/var/lib/postgresql/data
     # The panel migrates on start, so it must not race an unready cluster.
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U nexora -d nexora"]
+      test: ["CMD-SHELL", "pg_isready -U nx -d nx"]
       interval: 5s
       timeout: 5s
       retries: 10

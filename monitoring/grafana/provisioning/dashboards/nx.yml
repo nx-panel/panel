@@ -3,9 +3,9 @@
 apiVersion: 1
 
 providers:
-  - name: nexora
+  - name: nx
     orgId: 1
-    folder: Nexora
+    folder: NX
     type: file
     disableDeletion: false
     # Re-read the files periodically, so editing the JSON on disk and waiting is

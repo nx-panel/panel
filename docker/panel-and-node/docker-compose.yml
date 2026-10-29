@@ -1,4 +1,4 @@
-# Nexora Panel and one node on the same server — **not recommended**. A node's
+# NX Panel and one node on the same server — **not recommended**. A node's
 # address goes into every subscription link you hand out, so running one here
 # publishes your panel's address to every user; and client traffic is unbounded,
 # so a node under load takes the panel — and every other node's subscriptions —
@@ -33,14 +33,14 @@
 # SQLite, like ../sqlite. For PostgreSQL, copy the postgres service from
 # ../postgres/docker-compose.yml, publish it on `127.0.0.1:5432:5432` (host
 # networking means the panel reaches it there, not by service name) and set
-# NEXORA_DB_DRIVER/NEXORA_DB_DSN on the panel accordingly.
+# NX_DB_DRIVER/NX_DB_DSN on the panel accordingly.
 services:
   panel:
-    image: ghcr.io/nexora-vpn/panel:latest
+    image: ghcr.io/nx-panel/panel:latest
     restart: unless-stopped
-    container_name: nexora-panel
+    container_name: nx-panel
     # Host networking: no published port mapping, so — unlike the other two
-    # stacks — NEXORA_WEB_LISTEN is deliberately *not* set here. Nothing has to
+    # stacks — NX_WEB_LISTEN is deliberately *not* set here. Nothing has to
     # be kept in sync with a mapping, so the port chosen in the setup wizard
     # binds straight onto the host, exactly as in a native install. Until the
     # wizard runs, that is 2095.
@@ -70,18 +70,18 @@ services:
       - /etc/machine-id:/etc/machine-id:ro
 
   node:
-    image: ghcr.io/nexora-vpn/node:latest
+    image: ghcr.io/nx-panel/node:latest
     restart: unless-stopped
-    container_name: nexora-node
+    container_name: nx-node
     depends_on:
       - panel
     environment:
       # Loopback only. The panel is on this same host, and nothing else has any
       # business reaching the control API.
-      NEXORA_NODE_LISTEN: "127.0.0.1:62050"
-      NEXORA_NODE_CERT: /app/certs/ssl_cert.pem
-      NEXORA_NODE_KEY: /app/certs/ssl_key.pem
-      NEXORA_NODE_CLIENT_CA: /app/certs/panel_ca.pem
+      NX_NODE_LISTEN: "127.0.0.1:62050"
+      NX_NODE_CERT: /app/certs/ssl_cert.pem
+      NX_NODE_KEY: /app/certs/ssl_key.pem
+      NX_NODE_CLIENT_CA: /app/certs/panel_ca.pem
     volumes:
       - ./certs:/app/certs
       - ./cache:/app/cache

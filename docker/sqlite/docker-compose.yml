@@ -1,4 +1,4 @@
-# Nexora Panel — SQLite (no other service needed).
+# NX Panel — SQLite (no other service needed).
 #
 #   docker compose up -d
 #   docker compose logs panel | grep setup     # the first-run setup link
@@ -10,15 +10,15 @@
 # wizard there sets the main admin, the panel path and HTTPS. To print the
 # link's token again:
 #
-#   docker compose exec panel /app/nexora-panel setup-token
+#   docker compose exec panel /app/nx-panel setup-token
 #
 # For PostgreSQL use ../postgres/docker-compose.yml instead. Move between them by
 # starting fresh: the database is the one thing the panel cannot migrate itself.
 services:
   panel:
-    image: ghcr.io/nexora-vpn/panel:latest
+    image: ghcr.io/nx-panel/panel:latest
     restart: unless-stopped
-    container_name: nexora-panel
+    container_name: nx-panel
     environment:
       # Pins the address *inside* the container. The published mapping below is
       # what the host sees, so a port changed in the panel UI must not move it —
@@ -26,7 +26,7 @@ services:
       # Inside the container, bind the IPv6 wildcard — it accepts IPv4 too. What
       # reaches the host is the port mapping below, so an IPv6-only host also
       # needs that published on IPv6 (see the install guide).
-      NEXORA_WEB_LISTEN: "[::]:2095"
+      NX_WEB_LISTEN: "[::]:2095"
     volumes:
       # The SQLite database.
       - ./data:/app/db

@@ -1,7 +1,7 @@
 {
-  "title": "Nexora fleet",
-  "description": "Nodes, accounts, licence headroom and the event bus, from the panel's /metrics. Every panel here is deliberately fleet- or node-level: the exposition carries no per-user label, so per-account questions belong to the panel's Reports page instead. Provisioned against the datasource uid `nexora-prometheus`; importing this file by hand into an existing Grafana needs a Prometheus datasource with that uid, or one find-and-replace.",
-  "uid": "nexora-fleet",
+  "title": "NX fleet",
+  "description": "Nodes, accounts, licence headroom and the event bus, from the panel's /metrics. Every panel here is deliberately fleet- or node-level: the exposition carries no per-user label, so per-account questions belong to the panel's Reports page instead. Provisioned against the datasource uid `nx-prometheus`; importing this file by hand into an existing Grafana needs a Prometheus datasource with that uid, or one find-and-replace.",
+  "uid": "nx-fleet",
   "schemaVersion": 39,
   "version": 1,
   "editable": true,
@@ -19,9 +19,9 @@
         "type": "query",
         "datasource": {
           "type": "prometheus",
-          "uid": "nexora-prometheus"
+          "uid": "nx-prometheus"
         },
-        "query": "label_values(nexora_node_up, node)",
+        "query": "label_values(nx_node_up, node)",
         "refresh": 2,
         "includeAll": true,
         "multi": true,
@@ -49,7 +49,7 @@
       "description": "Nodes whose last heartbeat connected, over the nodes the panel knows about.",
       "datasource": {
         "type": "prometheus",
-        "uid": "nexora-prometheus"
+        "uid": "nx-prometheus"
       },
       "gridPos": {
         "h": 4,
@@ -59,12 +59,12 @@
       },
       "targets": [
         {
-          "expr": "sum(nexora_node_up)",
+          "expr": "sum(nx_node_up)",
           "legendFormat": "up",
           "refId": "A"
         },
         {
-          "expr": "nexora_nodes_total",
+          "expr": "nx_nodes_total",
           "legendFormat": "total",
           "refId": "B"
         }
@@ -84,7 +84,7 @@
       "description": "Accounts with traffic inside the panel's online window.",
       "datasource": {
         "type": "prometheus",
-        "uid": "nexora-prometheus"
+        "uid": "nx-prometheus"
       },
       "gridPos": {
         "h": 4,
@@ -94,7 +94,7 @@
       },
       "targets": [
         {
-          "expr": "nexora_users_online",
+          "expr": "nx_users_online",
           "refId": "A"
         }
       ],
@@ -112,7 +112,7 @@
       "description": "Since the current panel process bound its listener. A drop to zero is a restart.",
       "datasource": {
         "type": "prometheus",
-        "uid": "nexora-prometheus"
+        "uid": "nx-prometheus"
       },
       "gridPos": {
         "h": 4,
@@ -122,7 +122,7 @@
       },
       "targets": [
         {
-          "expr": "time() - nexora_panel_start_time_seconds",
+          "expr": "time() - nx_panel_start_time_seconds",
           "refId": "A"
         }
       ],
@@ -146,7 +146,7 @@
       "description": "One series per status, never per account.",
       "datasource": {
         "type": "prometheus",
-        "uid": "nexora-prometheus"
+        "uid": "nx-prometheus"
       },
       "gridPos": {
         "h": 7,
@@ -156,7 +156,7 @@
       },
       "targets": [
         {
-          "expr": "nexora_users_total",
+          "expr": "nx_users_total",
           "legendFormat": "{{status}}",
           "refId": "A"
         }
@@ -180,7 +180,7 @@
       "description": "Rows against each cap. A cap of 0 is unlimited and reads as empty here.",
       "datasource": {
         "type": "prometheus",
-        "uid": "nexora-prometheus"
+        "uid": "nx-prometheus"
       },
       "gridPos": {
         "h": 7,
@@ -190,7 +190,7 @@
       },
       "targets": [
         {
-          "expr": "nexora_license_used / clamp_min(nexora_license_limit, 1)",
+          "expr": "nx_license_used / clamp_min(nx_license_limit, 1)",
           "legendFormat": "{{resource}}",
           "refId": "A"
         }
@@ -235,7 +235,7 @@
       "description": "1 while the licence checks out, 0 on the free tier or any invalid state. The panel keeps running either way — it downgrades, it never hard-blocks — so this is the metric that says a downgrade happened without anyone opening the panel.",
       "datasource": {
         "type": "prometheus",
-        "uid": "nexora-prometheus"
+        "uid": "nx-prometheus"
       },
       "gridPos": {
         "h": 4,
@@ -245,7 +245,7 @@
       },
       "targets": [
         {
-          "expr": "nexora_license_valid",
+          "expr": "nx_license_valid",
           "refId": "A"
         }
       ],
@@ -286,7 +286,7 @@
       "description": "Absent when the licence does not expire. There is no grace period after the date, so this is the whole warning the fleet gets besides the panel's own banner.",
       "datasource": {
         "type": "prometheus",
-        "uid": "nexora-prometheus"
+        "uid": "nx-prometheus"
       },
       "gridPos": {
         "h": 4,
@@ -296,7 +296,7 @@
       },
       "targets": [
         {
-          "expr": "nexora_license_expires_at_seconds - time()",
+          "expr": "nx_license_expires_at_seconds - time()",
           "refId": "A"
         }
       ],
@@ -335,10 +335,10 @@
     {
       "type": "stat",
       "title": "Panel build",
-      "description": "The running version, from nexora_panel_build_info's label.",
+      "description": "The running version, from nx_panel_build_info's label.",
       "datasource": {
         "type": "prometheus",
-        "uid": "nexora-prometheus"
+        "uid": "nx-prometheus"
       },
       "gridPos": {
         "h": 4,
@@ -348,7 +348,7 @@
       },
       "targets": [
         {
-          "expr": "nexora_panel_build_info",
+          "expr": "nx_panel_build_info",
           "legendFormat": "{{version}}",
           "refId": "A"
         }
@@ -380,7 +380,7 @@
       "description": "Absent for a node that does not report a disk total — an engine too old to say, or a platform without /proc. A gap here is the panel not knowing, never a disk that emptied.",
       "datasource": {
         "type": "prometheus",
-        "uid": "nexora-prometheus"
+        "uid": "nx-prometheus"
       },
       "gridPos": {
         "h": 8,
@@ -390,7 +390,7 @@
       },
       "targets": [
         {
-          "expr": "nexora_node_disk_used_bytes{node=~\"$node\"} / nexora_node_disk_bytes{node=~\"$node\"}",
+          "expr": "nx_node_disk_used_bytes{node=~\"$node\"} / nx_node_disk_bytes{node=~\"$node\"}",
           "legendFormat": "{{node}}",
           "refId": "A"
         }
@@ -434,7 +434,7 @@
       "description": "Same rule as disk: no series for a node that does not report a memory total.",
       "datasource": {
         "type": "prometheus",
-        "uid": "nexora-prometheus"
+        "uid": "nx-prometheus"
       },
       "gridPos": {
         "h": 8,
@@ -444,7 +444,7 @@
       },
       "targets": [
         {
-          "expr": "nexora_node_memory_used_bytes{node=~\"$node\"} / nexora_node_memory_bytes{node=~\"$node\"}",
+          "expr": "nx_node_memory_used_bytes{node=~\"$node\"} / nx_node_memory_bytes{node=~\"$node\"}",
           "legendFormat": "{{node}}",
           "refId": "A"
         }
@@ -467,7 +467,7 @@
       "title": "Load average (1m)",
       "datasource": {
         "type": "prometheus",
-        "uid": "nexora-prometheus"
+        "uid": "nx-prometheus"
       },
       "gridPos": {
         "h": 8,
@@ -477,7 +477,7 @@
       },
       "targets": [
         {
-          "expr": "nexora_node_load1{node=~\"$node\"}",
+          "expr": "nx_node_load1{node=~\"$node\"}",
           "legendFormat": "{{node}}",
           "refId": "A"
         }
@@ -497,7 +497,7 @@
       "description": "Derived from the node's lifetime counters, so a node re-added from scratch shows a reset rather than a spike.",
       "datasource": {
         "type": "prometheus",
-        "uid": "nexora-prometheus"
+        "uid": "nx-prometheus"
       },
       "gridPos": {
         "h": 8,
@@ -507,7 +507,7 @@
       },
       "targets": [
         {
-          "expr": "rate(nexora_node_traffic_bytes_total{node=~\"$node\"}[5m])",
+          "expr": "rate(nx_node_traffic_bytes_total{node=~\"$node\"}[5m])",
           "legendFormat": "{{node}} {{direction}}",
           "refId": "A"
         }
@@ -529,7 +529,7 @@
       "description": "What each node's engine holds open. Absent while a node is not answering — which is what the panel's own uptime bar draws as an outage.",
       "datasource": {
         "type": "prometheus",
-        "uid": "nexora-prometheus"
+        "uid": "nx-prometheus"
       },
       "gridPos": {
         "h": 8,
@@ -539,7 +539,7 @@
       },
       "targets": [
         {
-          "expr": "nexora_node_connections{node=~\"$node\"}",
+          "expr": "nx_node_connections{node=~\"$node\"}",
           "legendFormat": "{{node}}",
           "refId": "A"
         }
@@ -560,7 +560,7 @@
       "description": "Counts since each node agent started, so the counter resets when the agent does.",
       "datasource": {
         "type": "prometheus",
-        "uid": "nexora-prometheus"
+        "uid": "nx-prometheus"
       },
       "gridPos": {
         "h": 6,
@@ -570,7 +570,7 @@
       },
       "targets": [
         {
-          "expr": "increase(nexora_node_engine_restarts_total{node=~\"$node\"}[1h])",
+          "expr": "increase(nx_node_engine_restarts_total{node=~\"$node\"}[1h])",
           "legendFormat": "{{node}}",
           "refId": "A"
         }
@@ -591,7 +591,7 @@
       "description": "The one panel failure that is otherwise silent: a delivery that never lands reports itself to nobody. A rising `dead`, or a `pending` that does not fall, is a stalled bus. `subscribers` at 0 means nothing is listening and an empty outbox is correct.",
       "datasource": {
         "type": "prometheus",
-        "uid": "nexora-prometheus"
+        "uid": "nx-prometheus"
       },
       "gridPos": {
         "h": 6,
@@ -601,12 +601,12 @@
       },
       "targets": [
         {
-          "expr": "nexora_event_deliveries",
+          "expr": "nx_event_deliveries",
           "legendFormat": "{{status}}",
           "refId": "A"
         },
         {
-          "expr": "nexora_event_subscribers",
+          "expr": "nx_event_subscribers",
           "legendFormat": "subscribers",
           "refId": "B"
         }
@@ -626,7 +626,7 @@
       "description": "Distinct accounts with traffic on each node inside the panel's online window. Absent while the usage series is switched off (stats_retention_days is 0) — which is why a flat line here and an empty panel are different answers.",
       "datasource": {
         "type": "prometheus",
-        "uid": "nexora-prometheus"
+        "uid": "nx-prometheus"
       },
       "gridPos": {
         "h": 8,
@@ -636,7 +636,7 @@
       },
       "targets": [
         {
-          "expr": "nexora_node_online_users{node=~\"$node\"}",
+          "expr": "nx_node_online_users{node=~\"$node\"}",
           "legendFormat": "{{node}}",
           "refId": "A"
         }
@@ -660,7 +660,7 @@
       "description": "`enabled` is the operator's switch; `up` is the last heartbeat. A node enabled but not up is an outage; one that is up but not enabled is serving nothing on purpose.",
       "datasource": {
         "type": "prometheus",
-        "uid": "nexora-prometheus"
+        "uid": "nx-prometheus"
       },
       "gridPos": {
         "h": 8,
@@ -670,14 +670,14 @@
       },
       "targets": [
         {
-          "expr": "nexora_node_up",
+          "expr": "nx_node_up",
           "legendFormat": "{{node}}",
           "refId": "A",
           "instant": true,
           "format": "table"
         },
         {
-          "expr": "nexora_node_enabled",
+          "expr": "nx_node_enabled",
           "legendFormat": "{{node}}",
           "refId": "B",
           "instant": true,
