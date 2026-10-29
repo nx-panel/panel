@@ -18,7 +18,12 @@ DO_UNINSTALL=0
 PG_DB="nx"
 PG_USER="nx"
 
-die() { echo "error: $*" >&2; exit 1; }
+die() {
+  echo "error: $*" >&2
+  # A failure after an install made under the old name was moved puts it back.
+  [[ "${TRANSFERRED:-0}" -eq 0 ]] || restore_transfer
+  exit 1
+}
 panel_version() { "${INSTALL_DIR}/nx-panel" version 2>/dev/null | awk '{print $2}'; }
 nx_panel() { "${INSTALL_DIR}/nx-panel" "$@"; }
 say() { printf '\033[1;35m==>\033[0m %s\n' "$*"; }
@@ -251,6 +256,7 @@ NODE_STATE_ITEMS="certs cache tailscale"
 
 TRANSFERRED=0
 TRANSFER_SNAPSHOT=""
+TRANSFER_ITEMS=()
 NODE_MOVED=0
 PG_RENAMED=0
 PG_PASS=""
@@ -315,12 +321,15 @@ transfer_postgres() {
   sed -i "s/user=${OLD_PG} /user=${PG_USER} /; s/dbname=${OLD_PG} /dbname=${PG_DB} /" "$cfg"
 }
 
-# move_into moves src to dst, or merges it into a dst an earlier run made.
+# move_into moves src to dst. A dst an earlier run left is merged into, with
+# src winning: after a restore, the old place is the one that ran last.
 move_into() {
   local src="${1:?}" dst="${2:?}"
   [[ -e "$src" ]] || return 0
-  if [[ -e "$dst" ]]; then
-    cp -a -n "$src"/. "$dst"/ && rm -rf "${src:?}"
+  if [[ -d "$src" && -d "$dst" ]]; then
+    cp -a "$src"/. "$dst"/ && rm -rf "${src:?}"
+  elif [[ -e "$dst" ]]; then
+    rm -rf "${dst:?}" && mv "$src" "$dst"
   else
     mkdir -p "$(dirname "$dst")"
     mv "$src" "$dst"
@@ -328,16 +337,17 @@ move_into() {
 }
 
 transfer_legacy() {
-  local node_method items=() p name parts=()
+  local node_method p name parts=()
+  TRANSFER_ITEMS=()
   node_method="$(legacy_node_method)"
   if [[ -d "$OLD_STATE_DIR" ]]; then
     for p in "$OLD_STATE_DIR"/* "$OLD_STATE_DIR"/.[!.]*; do
       [[ -e "$p" ]] || continue
       name="${p##*/}"
-      is_node_item "$name" || items+=("$name")
+      is_node_item "$name" || TRANSFER_ITEMS+=("$name")
     done
   fi
-  [[ -e "$OLD_INSTALL_DIR" || -f "/etc/systemd/system/${OLD_SERVICE}.service" || ${#items[@]} -gt 0 ]] || return 0
+  [[ -e "$OLD_INSTALL_DIR" || -f "/etc/systemd/system/${OLD_SERVICE}.service" || ${#TRANSFER_ITEMS[@]} -gt 0 ]] || return 0
 
   say "moving the panel installed under the old name"
   TRANSFERRED=1
@@ -347,7 +357,7 @@ transfer_legacy() {
   # and the backups, which are copies already.
   [[ -e "$OLD_INSTALL_DIR" ]] && parts+=("${OLD_INSTALL_DIR#/}")
   [[ -f "/etc/systemd/system/${OLD_SERVICE}.service" ]] && parts+=("etc/systemd/system/${OLD_SERVICE}.service")
-  for name in "${items[@]}"; do
+  for name in "${TRANSFER_ITEMS[@]}"; do
     case "$name" in bin|backups|rulesets) ;; *) parts+=("${OLD_STATE_DIR#/}/${name}") ;; esac
   done
   if [[ "$node_method" == script ]]; then
@@ -368,7 +378,7 @@ transfer_legacy() {
 
   move_into "$OLD_INSTALL_DIR" "$INSTALL_DIR"
   rm -f "${INSTALL_DIR:?}/${OLD_SERVICE:?}" "${INSTALL_DIR:?}/${OLD_SERVICE:?}.previous"
-  for name in "${items[@]}"; do
+  for name in "${TRANSFER_ITEMS[@]}"; do
     move_into "${OLD_STATE_DIR}/${name}" "${STATE_DIR}/${name}"
   done
   # Staged under the old name; downloaded again below under the new one.
@@ -452,6 +462,8 @@ EOF
 # restore_transfer puts the old install back from its snapshot, after a failure
 # later in a run that moved it.
 restore_transfer() {
+  [[ ${RESTORED:-0} -eq 0 ]] || return 0
+  RESTORED=1
   warn "putting the old install back"
   systemctl disable --now "$SERVICE" >/dev/null 2>&1 || true
   rm -f "$UNIT" "/usr/local/bin/${SERVICE:?}"
@@ -460,19 +472,43 @@ restore_transfer() {
     rm -f "$NODE_UNIT"
   fi
   [[ $PG_RENAMED -eq 0 ]] || pg_rename "$PG_DB" "$OLD_PG" || warn "could not rename the database back to ${OLD_PG}"
+  # What was moved goes back first; the snapshot then puts back the files it
+  # holds as they were before the run (the database before its migration).
+  local name
+  for name in "${TRANSFER_ITEMS[@]}"; do
+    move_into "${STATE_DIR}/${name}" "${OLD_STATE_DIR}/${name}"
+  done
+  if [[ $NODE_MOVED -eq 1 ]]; then
+    for name in $NODE_STATE_ITEMS; do
+      move_into "${NODE_STATE_DIR}/${name}" "${OLD_STATE_DIR}/${name}"
+    done
+  fi
+  # A database this run already migrated is stale now: the restored one is the
+  # install's, and the next run moves it again.
+  rm -f "${STATE_DIR:?}/nx.db" "${STATE_DIR:?}/nx.db-wal" "${STATE_DIR:?}/nx.db-shm"
   [[ -z "$TRANSFER_SNAPSHOT" ]] || tar -C / -xzf "$TRANSFER_SNAPSHOT" || warn "could not unpack ${TRANSFER_SNAPSHOT}"
   systemctl daemon-reload
   systemctl enable --now "$OLD_SERVICE" >/dev/null 2>&1 || true
   [[ $NODE_MOVED -eq 0 ]] || systemctl enable --now "$OLD_NODE_SERVICE" >/dev/null 2>&1 || true
-  warn "the old install runs again; what was moved is still in ${STATE_DIR}, and re-running this script tries again"
+  warn "the old install runs again; re-running this script tries the move again"
 }
 
 # --- install ------------------------------------------------------------------
 
+# on_exit puts a moved install back when the run stops early for any reason —
+# a die, or a command that failed under set -e — and not after it finished.
+TRANSFER_DONE=0
+on_exit() {
+  local rc=$?
+  [[ $rc -eq 0 || $TRANSFERRED -eq 0 || $TRANSFER_DONE -eq 1 ]] || restore_transfer
+  return $rc
+}
+trap on_exit EXIT
+
 transfer_legacy
 
 UPDATING=0
-[[ -x "${INSTALL_DIR}/nx-panel" || $TRANSFERRED -eq 1 ]] && UPDATING=1
+[[ -x "${INSTALL_DIR}/nx-panel" || -f "${INSTALL_DIR}/config.json" || $TRANSFERRED -eq 1 ]] && UPDATING=1
 
 if [[ $TRANSFERRED -eq 1 ]]; then
   say "installing NX Panel over the moved install"
@@ -488,7 +524,7 @@ mkdir -p "$INSTALL_DIR" "${STATE_DIR}/bin" "${STATE_DIR}/sub-themes" "${STATE_DI
 chmod 0700 "${STATE_DIR}/backups"
 
 TMP="$(mktemp -d)"
-trap 'rm -rf "$TMP"' EXIT
+trap 'rc=$?; rm -rf "$TMP"; (exit $rc); on_exit' EXIT
 
 say "downloading the panel"
 curl -fsSL "$(asset_url "$PANEL_REPO" "$PANEL_VERSION" "nx-panel-${ARCH}.tar.gz")" -o "${TMP}/panel.tar.gz" ||
@@ -570,6 +606,7 @@ rollback() {
     restore_transfer
     return 0
   fi
+  [[ -f "${INSTALL_DIR}/nx-panel.previous" ]] || return 0
   warn "restoring the previous version"
   mv -f "${INSTALL_DIR}/nx-panel.previous" "${INSTALL_DIR}/nx-panel"
   systemctl start "$SERVICE" 2>/dev/null || true
@@ -629,6 +666,7 @@ systemctl is-active --quiet "$SERVICE" || {
   die "the panel did not start (log above)"
 }
 [[ $NODE_MOVED -eq 0 ]] || install_moved_node
+TRANSFER_DONE=1
 
 echo
 if [[ $UPDATING -eq 1 ]]; then
