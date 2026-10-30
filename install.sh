@@ -258,10 +258,33 @@ TRANSFERRED=0
 TRANSFER_SNAPSHOT=""
 TRANSFER_ITEMS=()
 NODE_MOVED=0
+OLD_NODE_STOPPED=0
 PG_RENAMED=0
+PG_COPY=0
 PG_PASS=""
+MIGRATE_RAN=0
+# What was here under the new name before the move; a restore leaves it.
+NX_DB_BEFORE=0
+INSTALL_BEFORE=0
+NODE_BEFORE=0
+# The PostgreSQL database as it was before `migrate`, put back by a restore.
+PG_COPY_DB="nx_before_move"
+OLD_BACKUP_NAME="nexora-backup-"      # rebrand-ok
+# The move's record, kept until the run finishes or puts the old install back.
+# A run cut off halfway leaves it, and the next one takes the snapshot and the
+# list of what was moved from it rather than from what is left under the old
+# name: the snapshot of a second run would hold only that rest.
+TRANSFER_MARK="${STATE_DIR}/.transfer"
 
 is_node_item() { [[ " ${NODE_STATE_ITEMS} " == *" $1 "* ]]; }
+is_transfer_item() { [[ " ${TRANSFER_ITEMS[*]-} " == *" $1 "* ]]; }
+
+mark_get() { sed -n "s/^$1=//p" "$TRANSFER_MARK" 2>/dev/null | head -n1; }
+mark_write() {
+  (umask 077 && printf 'snapshot=%s\nitems=%s\nnx_db=%s\ninstall=%s\nnode_dir=%s\nnode=%s\npg_renamed=%s\npg_copy=%s\n' \
+    "$TRANSFER_SNAPSHOT" "${TRANSFER_ITEMS[*]-}" "$NX_DB_BEFORE" "$INSTALL_BEFORE" "$NODE_BEFORE" "$NODE_MOVED" \
+    "$PG_RENAMED" "$PG_COPY" > "$TRANSFER_MARK")
+}
 
 # legacy_node_method is how a node installed under the old name runs here.
 legacy_node_method() {
@@ -287,19 +310,32 @@ pg_hba_rename() {
   systemctl reload postgresql >/dev/null 2>&1 || systemctl restart postgresql >/dev/null 2>&1 || true
 }
 
+pg_drop_sessions() {
+  pg -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '$1'" >/dev/null
+}
+
 # pg_rename moves the database and its role from one name to the other and sets
 # the password again: renaming a role clears an MD5 password.
 pg_rename() {
   local from="$1" to="$2"
   if pg_has pg_database datname "$from" && ! pg_has pg_database datname "$to"; then
-    pg -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '${from}'" >/dev/null
+    pg_drop_sessions "$from"
     pg -c "ALTER DATABASE ${from} RENAME TO ${to}" || return 1
   fi
   if pg_has pg_roles rolname "$from" && ! pg_has pg_roles rolname "$to"; then
     pg -c "ALTER ROLE ${from} RENAME TO ${to}" || return 1
   fi
-  pg -c "ALTER ROLE ${to} PASSWORD '${PG_PASS}'" || return 1
+  # On stdin: a command line shows in ps.
+  if [[ -n "$PG_PASS" ]]; then
+    printf "ALTER ROLE %s PASSWORD '%s';\n" "$to" "$PG_PASS" | pg -f - >/dev/null || return 1
+  fi
   pg_hba_rename "$from" "$to"
+}
+
+# dsn_pass is the password in the DSN of a database this script set up.
+dsn_pass() {
+  [[ -f "$1" ]] || return 0
+  sed -n 's/.*"dsn": *"host=127\.0\.0\.1 port=5432 user=[a-z]* password=\([0-9a-f]*\) .*/\1/p' "$1" | head -n1
 }
 
 # transfer_postgres renames a database the old script set up on this server,
@@ -318,7 +354,22 @@ transfer_postgres() {
   say "renaming the PostgreSQL database and role to ${PG_DB}"
   pg_rename "$OLD_PG" "$PG_DB" || die "could not rename the PostgreSQL database; nothing else was moved"
   PG_RENAMED=1
+  mark_write
   sed -i "s/user=${OLD_PG} /user=${PG_USER} /; s/dbname=${OLD_PG} /dbname=${PG_DB} /" "$cfg"
+}
+
+# pg_keep_copy copies the renamed database before `migrate` rewrites it, so a
+# restore puts back the one the old panel can read. Taken before migrate ever
+# runs, so a copy a cut-off run left is still the right one.
+pg_keep_copy() {
+  [[ $PG_RENAMED -eq 1 && $PG_COPY -eq 0 ]] || return 0
+  say "copying the PostgreSQL database, to put back if the move fails"
+  pg_drop_sessions "$PG_DB"
+  pg -c "DROP DATABASE IF EXISTS ${PG_COPY_DB}" &&
+    pg -c "CREATE DATABASE ${PG_COPY_DB} TEMPLATE ${PG_DB}" ||
+    die "could not copy the PostgreSQL database; nothing else was moved"
+  PG_COPY=1
+  mark_write
 }
 
 # move_into moves src to dst. A dst an earlier run left is merged into, with
@@ -337,52 +388,96 @@ move_into() {
 }
 
 transfer_legacy() {
-  local node_method p name parts=()
+  local node_method p name parts=() snap resumed=0
   TRANSFER_ITEMS=()
   node_method="$(legacy_node_method)"
+  if [[ -f "$TRANSFER_MARK" ]]; then
+    resumed=1
+    TRANSFER_SNAPSHOT="$(mark_get snapshot)"
+    [[ -f "$TRANSFER_SNAPSHOT" ]] || TRANSFER_SNAPSHOT=""
+    for name in $(mark_get items); do TRANSFER_ITEMS+=("$name"); done
+    [[ "$(mark_get nx_db)" != 1 ]] || NX_DB_BEFORE=1
+    [[ "$(mark_get install)" != 1 ]] || INSTALL_BEFORE=1
+    [[ "$(mark_get node_dir)" != 1 ]] || NODE_BEFORE=1
+    [[ "$(mark_get node)" != 1 ]] || NODE_MOVED=1
+    [[ "$(mark_get pg_renamed)" != 1 ]] || PG_RENAMED=1
+    [[ "$(mark_get pg_copy)" != 1 ]] || PG_COPY=1
+    [[ $PG_RENAMED -eq 0 ]] || PG_PASS="$(dsn_pass "${OLD_INSTALL_DIR}/config.json")"
+    [[ $PG_RENAMED -eq 0 || -n "$PG_PASS" ]] || PG_PASS="$(dsn_pass "${INSTALL_DIR}/config.json")"
+  fi
   if [[ -d "$OLD_STATE_DIR" ]]; then
     for p in "$OLD_STATE_DIR"/* "$OLD_STATE_DIR"/.[!.]*; do
       [[ -e "$p" ]] || continue
       name="${p##*/}"
-      is_node_item "$name" || TRANSFER_ITEMS+=("$name")
+      is_node_item "$name" || is_transfer_item "$name" || TRANSFER_ITEMS+=("$name")
     done
   fi
-  [[ -e "$OLD_INSTALL_DIR" || -f "/etc/systemd/system/${OLD_SERVICE}.service" || ${#TRANSFER_ITEMS[@]} -gt 0 ]] || return 0
+  [[ $resumed -eq 1 || -e "$OLD_INSTALL_DIR" || -f "/etc/systemd/system/${OLD_SERVICE}.service" || ${#TRANSFER_ITEMS[@]} -gt 0 ]] || return 0
 
-  say "moving the panel installed under the old name"
+  if [[ $resumed -eq 1 ]]; then
+    say "finishing the move of the panel installed under the old name"
+  else
+    say "moving the panel installed under the old name"
+    [[ ! -e "${STATE_DIR}/nx.db" ]] || NX_DB_BEFORE=1
+    [[ ! -e "$INSTALL_DIR" ]] || INSTALL_BEFORE=1
+    [[ ! -e "$NODE_INSTALL_DIR" ]] || NODE_BEFORE=1
+  fi
   TRANSFERRED=1
   mkdir -p "$STATE_DIR"
 
-  # The snapshot leaves out what is fetched again (node binaries, rule sets)
-  # and the backups, which are copies already.
-  [[ -e "$OLD_INSTALL_DIR" ]] && parts+=("${OLD_INSTALL_DIR#/}")
-  [[ -f "/etc/systemd/system/${OLD_SERVICE}.service" ]] && parts+=("etc/systemd/system/${OLD_SERVICE}.service")
-  for name in "${TRANSFER_ITEMS[@]}"; do
-    case "$name" in bin|backups|rulesets) ;; *) parts+=("${OLD_STATE_DIR#/}/${name}") ;; esac
-  done
-  if [[ "$node_method" == script ]]; then
-    [[ -e "$OLD_NODE_DIR" ]] && parts+=("${OLD_NODE_DIR#/}")
-    [[ -f "/etc/systemd/system/${OLD_NODE_SERVICE}.service" ]] && parts+=("etc/systemd/system/${OLD_NODE_SERVICE}.service")
-    [[ -e "${OLD_STATE_DIR}/certs" ]] && parts+=("${OLD_STATE_DIR#/}/certs")
-  fi
-  if [[ ${#parts[@]} -gt 0 ]]; then
-    TRANSFER_SNAPSHOT="${STATE_DIR}/transfer-$(date +%Y%m%d-%H%M%S).tar.gz"
-    tar -C / -czf "$TRANSFER_SNAPSHOT" "${parts[@]}" || die "could not save the old install; nothing was moved"
-    chmod 0600 "$TRANSFER_SNAPSHOT"
-    say "the old install is saved in ${TRANSFER_SNAPSHOT}"
+  # Only amd64 and arm64 node binaries are published: a node on any other
+  # machine stays as it is, under the old name.
+  if [[ "$node_method" == script && "$ARCH" != linux-amd64 && "$ARCH" != linux-arm64 ]]; then
+    warn "the node on this server keeps its old name: no NX node is published for ${ARCH};"
+    warn "install it again by hand (it is marked \"needs migration\" on the panel's Nodes page)"
+    node_method=none
   fi
 
+  # Stopped before the snapshot: a database written to while tar reads it is
+  # copied torn, and GNU tar fails on a file that changed under it.
   systemctl disable --now "$OLD_SERVICE" >/dev/null 2>&1 || true
+  if [[ "$node_method" == script ]]; then
+    systemctl stop "$OLD_NODE_SERVICE" >/dev/null 2>&1 || true
+    OLD_NODE_STOPPED=1
+  fi
+
+  # The snapshot leaves out what is fetched again (node binaries, rule sets)
+  # and the backups, which are copies already. A cut-off run's snapshot is
+  # kept: it holds the install from before any of it was moved.
+  if [[ -z "$TRANSFER_SNAPSHOT" ]]; then
+    [[ -e "$OLD_INSTALL_DIR" ]] && parts+=("${OLD_INSTALL_DIR#/}")
+    [[ -f "/etc/systemd/system/${OLD_SERVICE}.service" ]] && parts+=("etc/systemd/system/${OLD_SERVICE}.service")
+    for name in ${TRANSFER_ITEMS[@]+"${TRANSFER_ITEMS[@]}"}; do
+      case "$name" in bin|backups|rulesets) ;; *) [[ ! -e "${OLD_STATE_DIR}/${name}" ]] || parts+=("${OLD_STATE_DIR#/}/${name}") ;; esac
+    done
+    if [[ "$node_method" == script ]]; then
+      [[ -e "$OLD_NODE_DIR" ]] && parts+=("${OLD_NODE_DIR#/}")
+      [[ -f "/etc/systemd/system/${OLD_NODE_SERVICE}.service" ]] && parts+=("etc/systemd/system/${OLD_NODE_SERVICE}.service")
+      [[ -e "${OLD_STATE_DIR}/certs" ]] && parts+=("${OLD_STATE_DIR#/}/certs")
+    fi
+    if [[ ${#parts[@]} -gt 0 ]]; then
+      snap="${STATE_DIR}/transfer-$(date +%Y%m%d-%H%M%S).tar.gz"
+      # Only a whole archive is ever unpacked: a cut-off one would truncate
+      # the files it puts back.
+      if ! (umask 077 && tar -C / -czf "$snap" "${parts[@]}"); then
+        rm -f "$snap"
+        die "could not save the old install; nothing was moved"
+      fi
+      TRANSFER_SNAPSHOT="$snap"
+      say "the old install is saved in ${TRANSFER_SNAPSHOT}"
+    fi
+  fi
+  mark_write
+
   transfer_postgres "${OLD_INSTALL_DIR}/config.json"
   [[ $PG_RENAMED -eq 1 ]] || transfer_postgres "${INSTALL_DIR}/config.json"
+  pg_keep_copy
 
   move_into "$OLD_INSTALL_DIR" "$INSTALL_DIR"
   rm -f "${INSTALL_DIR:?}/${OLD_SERVICE:?}" "${INSTALL_DIR:?}/${OLD_SERVICE:?}.previous"
-  for name in "${TRANSFER_ITEMS[@]}"; do
+  for name in ${TRANSFER_ITEMS[@]+"${TRANSFER_ITEMS[@]}"}; do
     move_into "${OLD_STATE_DIR}/${name}" "${STATE_DIR}/${name}"
   done
-  # Staged under the old name; downloaded again below under the new one.
-  rm -f "${STATE_DIR:?}/bin/${OLD_NODE_SERVICE:?}-linux-"*
   if [[ -f "${INSTALL_DIR}/config.json" ]]; then
     sed -i "s|${OLD_STATE_DIR}/${OLD_PG}\.db|${STATE_DIR}/nx.db|g; s|${OLD_STATE_DIR}/|${STATE_DIR}/|g; s|${OLD_INSTALL_DIR}|${INSTALL_DIR}|g" \
       "${INSTALL_DIR}/config.json"
@@ -407,6 +502,8 @@ transfer_legacy() {
 transfer_node() {
   say "moving the node beside it"
   systemctl disable --now "$OLD_NODE_SERVICE" >/dev/null 2>&1 || true
+  NODE_MOVED=1
+  mark_write
   local name
   for name in $NODE_STATE_ITEMS; do
     move_into "${OLD_STATE_DIR}/${name}" "${NODE_STATE_DIR}/${name}"
@@ -419,7 +516,6 @@ transfer_node() {
   fi
   rm -f "/etc/systemd/system/${OLD_NODE_SERVICE:?}.service"
   systemctl daemon-reload
-  NODE_MOVED=1
 }
 
 install_moved_node() {
@@ -459,6 +555,19 @@ EOF
   say "the node beside the panel runs as nx-node"
 }
 
+# finish_transfer drops what only a restore needed, once the moved install runs.
+finish_transfer() {
+  TRANSFER_DONE=1
+  [[ $TRANSFERRED -eq 1 ]] || return 0
+  # Staged under the old name; downloaded again under the new one.
+  rm -f "${STATE_DIR:?}/bin/${OLD_NODE_SERVICE:?}-linux-"*
+  if [[ $PG_COPY -eq 1 ]]; then
+    pg -c "DROP DATABASE IF EXISTS ${PG_COPY_DB}" >/dev/null 2>&1 ||
+      warn "could not drop the copy ${PG_COPY_DB} of the database; drop it yourself"
+  fi
+  rm -f "$TRANSFER_MARK"
+}
+
 # restore_transfer puts the old install back from its snapshot, after a failure
 # later in a run that moved it.
 restore_transfer() {
@@ -471,11 +580,25 @@ restore_transfer() {
     systemctl disable --now nx-node >/dev/null 2>&1 || true
     rm -f "$NODE_UNIT"
   fi
-  [[ $PG_RENAMED -eq 0 ]] || pg_rename "$PG_DB" "$OLD_PG" || warn "could not rename the database back to ${OLD_PG}"
+  if [[ $PG_RENAMED -eq 1 ]]; then
+    # The copy is the database before `migrate`; the one it rewrote goes.
+    if [[ $PG_COPY -eq 1 ]]; then
+      pg_drop_sessions "$PG_DB" || true
+      if pg -c "DROP DATABASE IF EXISTS ${PG_DB}" && pg -c "ALTER DATABASE ${PG_COPY_DB} RENAME TO ${PG_DB}"; then
+        PG_COPY=0
+      else
+        warn "could not put back the copy of the database; it is ${PG_COPY_DB}"
+      fi
+    fi
+    pg_rename "$PG_DB" "$OLD_PG" || warn "could not rename the database back to ${OLD_PG}"
+  elif [[ $MIGRATE_RAN -eq 1 ]] && grep -q '"driver": *"postgres"' "${INSTALL_DIR}/config.json" 2>/dev/null; then
+    warn "the PostgreSQL database on the operator's server was migrated already, and the old"
+    warn "panel cannot read it: restore it there from a dump taken before this run"
+  fi
   # What was moved goes back first; the snapshot then puts back the files it
   # holds as they were before the run (the database before its migration).
-  local name
-  for name in "${TRANSFER_ITEMS[@]}"; do
+  local name f
+  for name in ${TRANSFER_ITEMS[@]+"${TRANSFER_ITEMS[@]}"}; do
     move_into "${STATE_DIR}/${name}" "${OLD_STATE_DIR}/${name}"
   done
   if [[ $NODE_MOVED -eq 1 ]]; then
@@ -483,13 +606,31 @@ restore_transfer() {
       move_into "${NODE_STATE_DIR}/${name}" "${OLD_STATE_DIR}/${name}"
     done
   fi
-  # A database this run already migrated is stale now: the restored one is the
-  # install's, and the next run moves it again.
-  rm -f "${STATE_DIR:?}/nx.db" "${STATE_DIR:?}/nx.db-wal" "${STATE_DIR:?}/nx.db-shm"
-  [[ -z "$TRANSFER_SNAPSHOT" ]] || tar -C / -xzf "$TRANSFER_SNAPSHOT" || warn "could not unpack ${TRANSFER_SNAPSHOT}"
+  rm -f "${OLD_STATE_DIR:?}/bin/nx-node-linux-"*
+  # `migrate` renamed the old archives; the old panel lists only its own name.
+  for f in "${OLD_STATE_DIR}/backups/nx-backup-"*; do
+    [[ -f "$f" ]] || continue
+    name="${f%/*}/${OLD_BACKUP_NAME}${f##*/nx-backup-}"
+    [[ -e "$name" ]] || mv "$f" "$name"
+  done
+  if [[ -n "$TRANSFER_SNAPSHOT" ]]; then
+    # A database this run made from the old one is stale now: the snapshot
+    # holds the install's, and the next run moves it again. One that was
+    # here before the move is left.
+    [[ $NX_DB_BEFORE -eq 1 ]] || rm -f "${STATE_DIR:?}/nx.db" "${STATE_DIR:?}/nx.db-wal" "${STATE_DIR:?}/nx.db-shm"
+    [[ $INSTALL_BEFORE -eq 1 ]] || rm -rf "${INSTALL_DIR:?}"
+    [[ $NODE_MOVED -eq 0 || $NODE_BEFORE -eq 1 ]] || rm -rf "${NODE_INSTALL_DIR:?}"
+    if tar -C / -xzf "$TRANSFER_SNAPSHOT"; then
+      rm -f "$TRANSFER_MARK"
+    else
+      warn "could not unpack ${TRANSFER_SNAPSHOT}"
+    fi
+  else
+    rm -f "$TRANSFER_MARK"
+  fi
   systemctl daemon-reload
   systemctl enable --now "$OLD_SERVICE" >/dev/null 2>&1 || true
-  [[ $NODE_MOVED -eq 0 ]] || systemctl enable --now "$OLD_NODE_SERVICE" >/dev/null 2>&1 || true
+  [[ $NODE_MOVED -eq 0 && $OLD_NODE_STOPPED -eq 0 ]] || systemctl enable --now "$OLD_NODE_SERVICE" >/dev/null 2>&1 || true
   warn "the old install runs again; re-running this script tries the move again"
 }
 
@@ -613,6 +754,7 @@ rollback() {
 }
 
 say "migrating the database"
+MIGRATE_RAN=1
 if ! ( cd "$STATE_DIR" && "${INSTALL_DIR}/nx-panel" migrate -config "${INSTALL_DIR}/config.json" ); then
   rollback
   die "the database migration failed; nothing was changed"
@@ -666,7 +808,7 @@ systemctl is-active --quiet "$SERVICE" || {
   die "the panel did not start (log above)"
 }
 [[ $NODE_MOVED -eq 0 ]] || install_moved_node
-TRANSFER_DONE=1
+finish_transfer
 
 echo
 if [[ $UPDATING -eq 1 ]]; then
