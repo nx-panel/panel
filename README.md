@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="https://avatars.githubusercontent.com/u/304456640?s=200&v=4" width="96" alt="NX">
+  <img src="https://avatars.githubusercontent.com/u/349063115?s=200&v=4" width="96" alt="NX">
   <h1>NX Panel</h1>
   <p><strong>The control plane.</strong> Releases, install script, Docker stacks and documentation.</p>
 </div>
