@@ -47,7 +47,9 @@ services:
       # Node binaries the panel hands to node installers, and subscription page
       # themes. Both are read from the working directory, which is /app.
       - ./bin:/app/bin
-      - ./sub-themes:/app/sub-themes:ro
+      # Subscription page themes. Writable: the panel's theme catalogue
+      # installs into it.
+      - ./sub-themes:/app/sub-themes
       # Licensing ties the HWID to the HOST, not to an ephemeral container.
       # Comment this out on a host without /etc/machine-id;
       - /etc/machine-id:/etc/machine-id:ro

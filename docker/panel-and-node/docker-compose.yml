@@ -63,7 +63,9 @@ services:
       # Node binaries the panel hands to node installers (for the nodes on other
       # servers — this one runs from its own image), and subscription themes.
       - ./bin:/app/bin
-      - ./sub-themes:/app/sub-themes:ro
+      # Subscription page themes. Writable: the panel's theme catalogue
+      # installs into it.
+      - ./sub-themes:/app/sub-themes
       # Licensing ties the HWID to the HOST, not to an ephemeral container.
       # Comment this out on a host without /etc/machine-id; the HWID then falls
       # back to host DMI (via /sys) plus CPU.

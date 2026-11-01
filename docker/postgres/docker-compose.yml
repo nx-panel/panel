@@ -48,7 +48,9 @@ services:
       # worth keeping.
       - ./rulesets:/var/opt/nx-panel/rulesets
       - ./bin:/app/bin
-      - ./sub-themes:/app/sub-themes:ro
+      # Subscription page themes. Writable: the panel's theme catalogue
+      # installs into it.
+      - ./sub-themes:/app/sub-themes
       - /etc/machine-id:/etc/machine-id:ro
     ports:
       - "2095:2095"
