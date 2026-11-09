@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 # NX Panel installer and updater. Re-run it to update in place.
 #
-#   bash <(curl -fsSL https://raw.githubusercontent.com/nx-panel/panel/main/install.sh)
+#   bash <(curl -fsSL https://nx-panel.org/install.sh)
+#
+# Straight from GitHub, without nx-panel.org:
+#
+#   bash <(curl -fsSL https://raw.githubusercontent.com/nx-panel/panel/main/install.sh) --github
 set -euo pipefail
 
 PANEL_REPO="nx-panel/panel"
@@ -15,6 +19,7 @@ PANEL_VERSION=""    # empty = the latest release
 NODE_VERSION=""     # empty = the latest release
 USE_POSTGRES=0
 DO_UNINSTALL=0
+FROM_GITHUB=0       # 1 = download the panel straight from GitHub, not via nx-panel.org
 PG_DB="nx"
 PG_USER="nx"
 
@@ -33,12 +38,13 @@ usage() {
   cat >&2 <<EOF
 NX Panel installer
 
-  install.sh [--postgres] [--version vX.Y.Z] [--node-version vX.Y.Z]
+  install.sh [--postgres] [--version vX.Y.Z] [--node-version vX.Y.Z] [--github]
   install.sh --uninstall
 
   --postgres          install and configure PostgreSQL instead of SQLite
   --version TAG       install a specific panel release instead of the latest
   --node-version TAG  stage a specific node release instead of the latest
+  --github            download the panel straight from GitHub, not via nx-panel.org
   --uninstall         stop and remove the panel (the database is kept)
 
 Re-running the installer on an existing install performs an update.
@@ -52,6 +58,7 @@ while [[ $# -gt 0 ]]; do
     --version) PANEL_VERSION="${2:-}"; [[ -n "$PANEL_VERSION" ]] || usage; shift 2 ;;
     --node-version) NODE_VERSION="${2:-}"; [[ -n "$NODE_VERSION" ]] || usage; shift 2 ;;
     --uninstall) DO_UNINSTALL=1; shift ;;
+    --github) FROM_GITHUB=1; shift ;;
     -h|--help) usage ;;
     *) echo "unknown argument: $1" >&2; usage ;;
   esac
@@ -91,6 +98,39 @@ asset_url() {
   else
     echo "https://github.com/${repo}/releases/latest/download/${name}"
   fi
+}
+
+# The panel archive comes through nx-panel.org, which counts the download
+# (version and platform, with the address it came from — see LICENSE) and
+# redirects to the GitHub release. GitHub itself is the fallback, so an
+# install never depends on the site, and --github skips the site entirely.
+# One URL per line, in the order to try.
+NX_SITE="https://nx-panel.org"
+panel_asset_urls() {
+  local name="$1" via="$2" path
+  if [[ -n "${NX_DOWNLOAD_BASE:-}" ]]; then
+    echo "${NX_DOWNLOAD_BASE%/}/${name}"
+    return
+  fi
+  if [[ -n "$PANEL_VERSION" ]]; then
+    path="releases/download/${PANEL_VERSION}/${name}"
+  else
+    path="releases/latest/download/${name}"
+  fi
+  [[ $FROM_GITHUB -eq 1 ]] || echo "${NX_SITE}/${path}?via=${via}"
+  echo "https://github.com/${PANEL_REPO}/${path}"
+}
+
+# fetch_first OUT URL... downloads the first URL that answers into OUT.
+fetch_first() {
+  local out="$1" url
+  shift
+  for url in "$@"; do
+    # A site blocked by dropping packets would otherwise hold curl for minutes
+    # before the next URL is tried.
+    curl -fsSL --connect-timeout 15 "$url" -o "$out" && return 0
+  done
+  return 1
 }
 
 # --- uninstall ----------------------------------------------------------------
@@ -668,7 +708,10 @@ TMP="$(mktemp -d)"
 trap 'rc=$?; rm -rf "$TMP"; (exit $rc); on_exit' EXIT
 
 say "downloading the panel"
-curl -fsSL "$(asset_url "$PANEL_REPO" "$PANEL_VERSION" "nx-panel-${ARCH}.tar.gz")" -o "${TMP}/panel.tar.gz" ||
+VIA=install
+[[ $UPDATING -eq 1 ]] && VIA=update
+mapfile -t PANEL_URLS < <(panel_asset_urls "nx-panel-${ARCH}.tar.gz" "$VIA")
+fetch_first "${TMP}/panel.tar.gz" "${PANEL_URLS[@]}" ||
   die "could not download the panel for ${ARCH}"
 tar -C "$TMP" -xzf "${TMP}/panel.tar.gz"
 

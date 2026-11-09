@@ -23,18 +23,25 @@ confidential. They are licensed, not sold.
    more instances than licensed is a breach of this agreement and may cause the
    Software to revert to the free tier or cease operating.
 
-4. OWNERSHIP. NX retains all right, title, and interest in and to the
+4. DATA THE SOFTWARE SENDS. Install, update and the new-version check go
+   through nx-panel.org. Each request records the panel's version and
+   platform, a checksum of its binary, whether it holds a licence, and the
+   address it came from with its country. They are used for licence and
+   release statistics. Addresses are deleted after 12 months; the counts are
+   kept. Switching off the update check stops the panel's daily request.
+
+5. OWNERSHIP. NX retains all right, title, and interest in and to the
    Software, including all intellectual property rights.
 
-5. NO WARRANTY. THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+6. NO WARRANTY. THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
    EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
    MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT.
 
-6. LIMITATION OF LIABILITY. IN NO EVENT SHALL NX BE LIABLE FOR ANY CLAIM,
+7. LIMITATION OF LIABILITY. IN NO EVENT SHALL NX BE LIABLE FOR ANY CLAIM,
    DAMAGES, OR OTHER LIABILITY ARISING FROM OR IN CONNECTION WITH THE SOFTWARE
    OR ITS USE.
 
-7. TERMINATION. This license terminates automatically if you breach it. On
+8. TERMINATION. This license terminates automatically if you breach it. On
    termination you must stop using and destroy all copies of the Software.
 
 Note: The NX Node (the data-plane component in a separate repository) links

@@ -17,7 +17,13 @@ installer and documentation. The source is not public.
 ## Install
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/nx-panel/panel/main/install.sh)
+bash <(curl -fsSL https://nx-panel.org/install.sh)
+```
+
+Or straight from GitHub, without nx-panel.org:
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/nx-panel/panel/main/install.sh) --github
 ```
 
 That is the whole install. It asks nothing: the script sets up the database and
